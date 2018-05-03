@@ -1,23 +1,34 @@
 var map;
+var infoWindow;
 var service;
-var infowindow;
 
-function initialize() {
-	var jussi = new google.maps.LatLng(-23.583638, -46.6759948);
-
+function initMap() {
+	console.log('init');
 	map = new google.maps.Map(document.getElementById('map'), {
-		center: jussi,
-		zoom: 16
+		center: {lat: -23.583638, lng: -46.6759948 },
+		zoom: 17,
+		styles: [{
+			stylers: [{ visibility: 'simplified' }]
+		}, {
+			elementType: 'labels',
+			// stylers: [{ visibility: 'off' }]
+		}]
 	});
 
-	var request = {
-		location: jussi,
-		radius: '500',
-		types: ['restaurant']
-	};
-
+	infoWindow = new google.maps.InfoWindow();
 	service = new google.maps.places.PlacesService(map);
-	service.nearbySearch(request, callback);
+
+	// The idle event is a debounced event, so we can query & listen without
+	// throwing too many requests at the server.
+	map.addListener('idle', performSearch);
+}
+
+function performSearch() {
+	var request = {
+		bounds: map.getBounds(),
+		keyword: 'restaurant'
+	};
+	service.radarSearch(request, callback);
 }
 
 function callback(results, status) {
@@ -26,23 +37,31 @@ function callback(results, status) {
 		return;
 	}
 
-	for (var i = 0; i < results.length; i++) {
-		var place = results[i];
-		createMarker(results[i]);
+	console.log('# results', results );
+	for (var i = 0, result; result = results[i]; i++) {
+		addMarker(result);
 	}
 }
 
-function createMarker(place) {
-	var placeLoc = place.geometry.location;
+function addMarker(place) {
 	var marker = new google.maps.Marker({
 		map: map,
-		position: place.geometry.location
+		position: place.geometry.location,
+		icon: {
+			url: 'https://developers.google.com/maps/documentation/javascript/images/circle.png',
+			anchor: new google.maps.Point(10, 10),
+			scaledSize: new google.maps.Size(10, 17)
+		}
 	});
 
 	google.maps.event.addListener(marker, 'click', function() {
-		infowindow.setContent(place.name);
-		infowindow.open(map, this);
+		service.getDetails(place, function(result, status) {
+			if (status !== google.maps.places.PlacesServiceStatus.OK) {
+				console.error(status);
+				return;
+			}
+			infoWindow.setContent(result.name);
+			infoWindow.open(map, marker);
+		});
 	});
 }
-
-google.maps.event.addDomListener(window, 'load', initialize);
